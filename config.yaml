@@ -1,0 +1,85 @@
+# railg 配置。所有字段都可用环境变量覆盖:RAILG__<SECTION>__<KEY>
+# 例:RAILG__LLM__MODEL=Qwen/Qwen3-8B
+#
+# API Key 只从环境变量读,不写进这个文件(见 .env.example)。
+
+store:
+  url: http://localhost:9200
+  index: railg
+  # 一次 bulk 提交的 chunk 数
+  bulk_size: 200
+  # 会话/反馈/文档登记/评测集(SQLite 单文件)
+  sqlite_path: data/railg.db
+
+embedding:
+  # 任何 OpenAI 兼容的 /embeddings 端点
+  base_url: https://api.siliconflow.cn/v1
+  model: BAAI/bge-m3
+  # ★ 必须与 model 实际输出维度一致,mapping 由它生成
+  dims: 1024
+  # 单次请求最多几条文本
+  batch_size: 32
+  # 单条文本最大字符数,超出截断(粗口径,防 API 报错)
+  max_input_chars: 8000
+
+rerank:
+  # 置空则跳过重排(检索仍可用,只是精度下降)
+  base_url: https://api.siliconflow.cn/v1
+  model: BAAI/bge-reranker-v2-m3
+  enabled: true
+
+llm:
+  base_url: https://api.siliconflow.cn/v1
+  model: Qwen/Qwen3-8B
+  temperature: 0.3
+  max_tokens: 2048
+
+# ★★★ 切块参数与父块还原强耦合 —— 改这里必须重建索引。
+#     chunk_overlap 被代码强制为 0,原因见 chunker.py 顶部说明。
+chunk:
+  chunk_size: 100          # 子块大小(token)
+  context_size: 20         # 上下文块大小(n_newlines)
+  chunk_overlap: 0         # ★ 只能是 0
+  context_overlap: 0       # ★ 只能是 0
+  enable_page_numbers: true
+  table_header_propagation: true
+  ignore_sections: []      # 按 header2 忽略的章节,如 ["附录", "免责声明"]
+
+retrieval:
+  # 从 OpenSearch 取回多少候选
+  top_k: 50
+  # 重排后保留多少
+  rerank_top_n: 10
+  # 最终送进 LLM 的父块数
+  max_context_docs: 6
+  # 混合召回权重
+  bm25_weight: 1.0
+  vector_weight: 1.0
+  # kNN 参数
+  knn_num_candidates: 200
+  knn_min_similarity: 0.3
+  # 是否还原父块(small-to-big)
+  return_parent: true
+  # 父块窗口:向前后各取几个兄弟块
+  parent_window: 3
+
+generation:
+  # 上下文 token 预算(粗口径,按字符估算)
+  context_budget_tokens: 6000
+  # 单个候选最多占多少字符
+  max_candidate_chars: 4000
+  # 句子级归因校验(需要额外一次 embedding 调用)
+  verify_attribution: true
+  # 低于此相似度的句子标记为「无来源支撑」
+  attribution_threshold: 0.45
+
+auth:
+  # 个人项目默认单用户直通。改为 true 则启用 JWT 登录。
+  enabled: false
+  # 启用时的默认账号(密码从环境变量 RAILG_ADMIN_PASSWORD 读)
+  admin_user: admin
+  jwt_expire_minutes: 10080
+
+server:
+  host: 127.0.0.1
+  port: 8000

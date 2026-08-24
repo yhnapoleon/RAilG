@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    services:
+      # 集成测试跑真实 OpenSearch —— mapping 能否被引擎接受、
+      # 权限过滤是否真的生效,这些纯单测覆盖不到。
+      opensearch:
+        image: opensearchproject/opensearch:2.17.1
+        env:
+          discovery.type: single-node
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+          DISABLE_SECURITY_PLUGIN: "true"
+          DISABLE_INSTALL_DEMO_CONFIG: "true"
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd "curl -sf http://localhost:9200/_cluster/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+          --health-start-period 40s
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: 安装依赖
+        run: pip install -e ".[dev]"
+
+      - name: 等待 OpenSearch
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9200/_cluster/health && exit 0
+            sleep 5
+          done
+          echo "OpenSearch 未就绪"; exit 1
+
+      - name: 跑测试
+        run: pytest -q

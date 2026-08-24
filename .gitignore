@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+data/
+.pytest-tmp/
+corpus/
+
+# 本地笔记,不入库
+*.local.md
